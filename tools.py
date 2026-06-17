@@ -14,15 +14,18 @@ def calculate(expression: str) -> str:
         return f"Ошибка при расчете: {e}."
 
 def get_weather(city: str):
+    """Узнает погоду и время в городе."""
     try:
-        url = f"https://wttr.in/{city}?format=3&lang=ru"
-        resp = requests.get(url, timeout=5)
-        weather_info = resp.text.strip() if resp.status_code == 200 else "погоду узнать не удалось"
+        url = f"https://wttr.in/{city}?format=3&lang=ru&0"
+        resp = requests.get(url, timeout=7)
+        
+        weather_info = resp.text.strip()
+        if len(weather_info) < 10 or "WEATHER" in weather_info:
+            weather_info = f"погода в {city} сейчас недоступна для отображения"
 
         geolocator = Nominatim(user_agent="my_ai_bot")
         location = geolocator.geocode(city)
         time_str = ""
-        
         if location:
             tf = TimezoneFinder()
             tz_str = tf.timezone_at(lng=location.longitude, lat=location.latitude)
@@ -32,6 +35,9 @@ def get_weather(city: str):
                 time_str = f" | Время: {time_now}"
 
         return f"{weather_info}{time_str}"
+        
+    except Exception as e:
+        return f"Не удалось получить данные: {e}"
         
     except Exception as e:
         return f"Ошибка: {e}"
