@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from telebot import types
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain.agents import tool
 from tools import calculate, get_weather, google_search, convert_currency
 
 # =====================================================================
@@ -134,6 +135,28 @@ def send_delayed_reminder(chat_id, delay_seconds, text):
 # =====================================================================
 # 5. МАРШРУТИЗАЦИЯ И ОБРАБОТКА ЗАПРОСОВ (ЯДРО АГЕНТА)
 # =====================================================================
+@tool
+def calculate_tool(expression: str):
+    """Выполняет математические вычисления."""
+    return calculate(expression)
+
+@tool
+def weather_tool(city: str):
+    """Узнает погоду и время в городе."""
+    return get_weather(city)
+
+@tool
+def search(query: str):
+    """Ищет информацию в интернете."""
+    return google_search(query)
+
+@tool
+def currency(info: str):
+    """Конвертирует валюты. Например: 100 USD в EUR."""
+    return convert_currency(info)
+
+tools = [calc, weather, search, currency]
+
 @bot.message_handler(func=lambda message: True)
 def handle_agent_message(message):
     try:
@@ -290,6 +313,8 @@ def run_health_server():
 if __name__ == "__main__":
     web_thread = threading.Thread(target=run_health_server, daemon=True)
     web_thread.start()  
+
+
 
 # =====================================================================
 # 6. ЗАПУСК СЕРВЕРА
