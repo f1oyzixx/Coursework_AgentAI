@@ -7,11 +7,14 @@ from geopy.geocoders import Nominatim
 
 def calculate(expression: str) -> str:
     try:
-        cleaned = expression.replace(" ", "")
+        cleaned = "".join(c for c in expression if c in "0123456789+-*/.()")
+        
         result = eval(cleaned, {"__builtins__": None}, {})
-        return f"Результат вычисления: {result}"
+        
+        return str(result)
+        
     except Exception as e:
-        return f"Ошибка при расчете: {e}."
+        return "Ошибка в примере. Пожалуйста, используйте только числа и знаки +, -, *, /"
 
 def get_weather(city: str):
     url = f"https://wttr.in/{city}?format=3&lang=ru&0"
