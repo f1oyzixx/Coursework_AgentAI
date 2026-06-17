@@ -24,7 +24,7 @@ def get_weather(city: str):
         else:
             weather_text = "данные о погоде недоступны"
 
-        geolocator = Nominatim(user_agent="shchukin_ai_bot_31is")
+        geolocator = Nominatim(user_agent="shchukin_ai_bot_31is", timeout=10)
         location = geolocator.geocode(city)
         time_text = ""
         if location:

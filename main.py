@@ -165,8 +165,12 @@ def handle_agent_message(message):
         print(f"\n[Запрос пользователя]: {user_text}")
         save_message(chat_id, "user", user_text)
         
-        system_instruction = """Ты — премиальный ИИ-агент курсовой работы студента Щучкина. Ты управляешь инструментами.
+        system_instruction = """Ты — ИИ-агент курсовой работы студента Щучкина. Ты управляешь инструментами.
         Ты общаешься вежливо, структурировано и строго на русском языке.
+        Твои ответы должны быть лаконичными и информативными.
+        Если ты используешь инструменты, выводи только суть.
+        Никаких долгих вступлений, никакой воды.
+        Если ответа нет, ответь кратко и по делу.
         Когда ты формируешь обычный текстовый ответ (без вызова инструментов), всегда разбивай его на логические абзацы, используй списки, маркеры и выделяй ключевые слова жирным шрифтом (**слово**).
         
         Сначала проанализируй запрос на логические подвохи. Если это абсурд/загадка (яблоки на дубе, ножки у стола), ответь сам красивым развернутым текстом, объяснив подвох и иронию.
@@ -195,14 +199,14 @@ def handle_agent_message(message):
             if action.startswith("CALC:"):
                 is_tool_used = True
                 expr = action.replace("CALC:", "").strip()
-                result = calculate(expr)
-                final_replies.append(f"Результат {expr} = {result}")
+                res = calculate(expr)
+                final_replies.append(f"Вычисление: {expr} = {res}")
                 
             elif action.startswith("WEATHER:"):
                 is_tool_used = True
                 city = action.replace("WEATHER:", "").strip()
-                result = get_weather(city)
-                final_replies.append(f"🧱 **[ 🌤 Модуль метеоданных ]**\n📍 *Локация:* {city.capitalize()}\nℹ️ {result}")
+                res = get_weather(city)
+                final_replies.append(f"Погода в {city.capitalize()}: {res}")
                 
             elif action.startswith("SEARCH:"):
                 is_tool_used = True
@@ -265,15 +269,11 @@ def handle_agent_message(message):
 
         save_message(chat_id, "assistant", bot_answer)
         try:
-            bot.reply_to(message, bot_answer, parse_mode="Markdown", reply_markup=get_main_keyboard())
+            bot.reply_to(message, bot_answer, reply_markup=get_main_keyboard())
         except Exception as e:
-            print(f"[Warn]: Markdown failed, sending plain text. Error: {e}")
-            try:
-                bot.reply_to(message, bot_answer, reply_markup=get_main_keyboard())
-            except Exception as critical_send_err:
-                print(f"[Critical]: Failed to send: {critical_err}")
-                bot.reply_to(message, f"Результат: {bot_answer.splitlines()[-1] if '\n' in bot_answer else bot_answer}", reply_markup=get_main_keyboard())
-
+            print(f"[Ошибка отправки]: {e}")
+            bot.reply_to(message, "Ошибка формата ответа.", reply_markup=get_main_keyboard())
+            
     except Exception as e:
         print(f"[Системная ошибка ядра]: {e}")
         bot.reply_to(message, f"💥 Произошла системная ошибка в работе ядра агента.", reply_markup=get_main_keyboard())
