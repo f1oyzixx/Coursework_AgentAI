@@ -3,6 +3,7 @@ import sqlite3
 import threading
 import time
 import os
+import re
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from dotenv import load_dotenv
 from telebot import types
@@ -25,7 +26,7 @@ llm = ChatGroq(
 )
 
 # =====================================================================
-# БАЗА ДАННЫХ
+# 1. БАЗА ДАННЫХ (ПАМЯТЬ БОТА)
 # =====================================================================
 def init_db():
     conn = sqlite3.connect("bot_memory.db")
@@ -48,7 +49,7 @@ def save_message(chat_id, role, content):
     conn.commit()
     conn.close()
 
-def get_chat_history(chat_id, limit=2):
+def get_chat_history(chat_id, limit=6):
     conn = sqlite3.connect("bot_memory.db")
     cursor = conn.cursor()
     cursor.execute("SELECT role, content FROM history WHERE chat_id = ? ORDER BY id DESC LIMIT ?", (chat_id, limit))
@@ -66,6 +67,9 @@ def get_chat_history(chat_id, limit=2):
 
 init_db()
 
+# =====================================================================
+# 2. ИНТЕРФЕЙС (КЛАВИАТУРА)
+# =====================================================================
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(types.KeyboardButton("🌤 Погода"), types.KeyboardButton("🧮 Калькулятор"))
@@ -73,6 +77,9 @@ def get_main_keyboard():
     markup.add(types.KeyboardButton("💵 Курс валют"), types.KeyboardButton("⏰ Напоминание"))
     return markup
 
+# =====================================================================
+# 3. КОМАНДЫ СТАРТА И ПОМОЩИ
+# =====================================================================
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     welcome_text = (
@@ -84,6 +91,9 @@ def send_welcome(message):
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard())
 
+# =====================================================================
+# 4. МОДУЛЬ НАПОМИНАНИЙ
+# =====================================================================
 def send_delayed_reminder(chat_id, delay_seconds, text):
     time.sleep(delay_seconds)
     try:
@@ -92,7 +102,7 @@ def send_delayed_reminder(chat_id, delay_seconds, text):
         print(f"Ошибка напоминания: {e}")
 
 # =====================================================================
-# ЯДРО АГЕНТА (МАРШРУТИЗАЦИЯ)
+# 5. МАРШРУТИЗАЦИЯ И ОБРАБОТКА ЗАПРОСОВ (ЯДРО АГЕНТА)
 # =====================================================================
 @bot.message_handler(func=lambda message: True)
 def handle_agent_message(message):
@@ -130,8 +140,30 @@ def handle_agent_message(message):
                 print(f"Ошибка парсинга напоминания: {e}")
                 pass
 
+        date_match = re.search(r'(\d{1,2})[\.\-/](\d{1,2})[\.\-/](\d{4})', user_text)
+        if date_match:
+            try:
+                birth_year = int(date_match.group(3))
+                current_year = 2026
+                age = current_year - birth_year
+                
+                if 11 <= age % 100 <= 14:
+                    years_word = "лет"
+                elif age % 10 == 1:
+                    years_word = "год"
+                elif age % 10 in [2, 3, 4]:
+                    years_word = "года"
+                else:
+                    years_word = "лет"
+                
+                bot_answer = f"Исходя из даты рождения {date_match.group(0)}, в текущем 2026 году вам {age} {years_word}."
+                save_message(chat_id, "assistant", bot_answer)
+                bot.reply_to(message, bot_answer, reply_markup=get_main_keyboard())
+                return
+            except Exception as e:
+                print(f"Ошибка вычисления возраста по дате: {e}")
+
         if any(c.isdigit() for c in user_text) and not any(word in user_text.lower() for word in ["лет", "год", "доллар", "евро", "рубл"]):
-            
             allowed_math = set("0123456789+-*/.() ")
             
             if not set(user_text).issubset(allowed_math):
@@ -159,11 +191,12 @@ def handle_agent_message(message):
             "2. RUN_WEATHER:город\n"
             "3. RUN_SEARCH:запрос\n"
             "4. RUN_CURRENCY:сумма:из_валюты:в_валюту\n\n"
-            "Если это простой диалог, просто ответь текстом на русском языке в 1 предложении без команд."
+            "Если пользователь спрашивает о себе, о том, что он говорил ранее, или это простой диалог — "
+            "найди ответ в истории ваших сообщений выше и ответь обычным текстом на русском языке в 1 предложение без команд."
         )
 
         messages = [SystemMessage(content=system_instruction)]
-        messages.extend(get_chat_history(chat_id, limit=2))
+        messages.extend(get_chat_history(chat_id, limit=6))
         messages.append(HumanMessage(content=user_text))
 
         ai_response = llm.invoke(messages).content.strip()
@@ -209,7 +242,7 @@ def handle_agent_message(message):
         bot.reply_to(message, "Ошибка обработки. Пожалуйста, перефразируйте ваш запрос.", reply_markup=get_main_keyboard())
 
 # =====================================================================
-# HEALTH SERVER И ЗАПУСК
+# 6. ВЕБ-СЕРВЕР И АВТОЗАПУСК
 # =====================================================================
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
