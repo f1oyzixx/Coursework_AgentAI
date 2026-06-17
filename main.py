@@ -98,7 +98,7 @@ def send_delayed_reminder(chat_id, delay_seconds, text):
 def handle_agent_message(message):
     try:
         chat_id = message.chat.id
-        user_text = message.text
+        user_text = message.text.strip()
         
         if user_text == "🌤 Погода":
             bot.send_message(chat_id, "Напишите запрос, например: Погода в Москве")
@@ -117,10 +117,23 @@ def handle_agent_message(message):
             return
 
         save_message(chat_id, "user", user_text)
-        
-        if any(c.isdigit() for c in user_text) and not any(word in user_text.lower() for word in ["лет", "год", "доллар", "евро", "рубл"]):
-            allowed_math = set("0123456789+-*/.() ")
 
+        if "напомни через" in user_text.lower():
+            try:
+                words = user_text.lower().split()
+                seconds = int(words[2])
+                reminder_text = " ".join(words[4:])
+                threading.Thread(target=send_delayed_reminder, args=(chat_id, seconds, reminder_text), daemon=True).start()
+                bot.reply_to(message, f"Задача принята. Напоминание сработает через {seconds} сек.", reply_markup=get_main_keyboard())
+                return
+            except Exception as e:
+                print(f"Ошибка парсинга напоминания: {e}")
+                pass
+
+        if any(c.isdigit() for c in user_text) and not any(word in user_text.lower() for word in ["лет", "год", "доллар", "евро", "рубл"]):
+            
+            allowed_math = set("0123456789+-*/.() ")
+            
             if not set(user_text).issubset(allowed_math):
                 bot_answer = "Результат вычислений: Ошибка: выражение содержит недопустимые символы (например, '?') и не может быть вычислено."
                 save_message(chat_id, "assistant", bot_answer)
@@ -132,31 +145,22 @@ def handle_agent_message(message):
                 save_message(chat_id, "assistant", bot_answer)
                 bot.reply_to(message, bot_answer, reply_markup=get_main_keyboard())
                 return
-        
+
         system_instruction = (
             "Ты — ИИ-рулевой для вызова программных функций. Отвечай кратко.\n"
             "ВНИМАНИЕ: Текущий год — 2026. Если тебя спрашивают про возраст людей или объектов, "
             "тебе ОБЯЗАТЕЛЬНО нужно сначала узнать их дату рождения или основания через поиск В Википедии!\n\n"
+            "КРИТИЧЕСКОЕ ПРАВИЛО ДЛЯ МАТЕМАТИКИ:\n"
+            "Тебе СТРОГО ЗАПРЕЩЕНО считать самостоятельно в уме! Если пользователь просит посчитать пример, "
+            "ты обязан выдать команду RUN_CALC:выражение. Никаких цифр-ответов от себя!\n\n"
             "Если пользователю нужно что-то узнать, найти, посчитать или проверить погоду, ты "
             "ОБЯЗАН выдать СТРОГО ОДНУ команду из списка ниже и БОЛЬШЕ НИЧЕГО не писать:\n"
-            "1. RUN_CALC:выражение (Пример: RUN_CALC:2+2)\n"
-            "2. RUN_WEATHER:город (Пример: RUN_WEATHER:Москва)\n"
-            "3. RUN_SEARCH:запрос (Пример: RUN_SEARCH:Дональд Трамп)\n"
-            "4. RUN_CURRENCY:сумма:из_валюты:в_валюту (Пример: RUN_CURRENCY:100:USD:RUB)\n\n"
-            "Если это простой диалог (приветствие, спасибо, пустой или абстрактный вопрос), "
-            "просто ответь текстом на русском языке в 1 предложение без команд."
+            "1. RUN_CALC:выражение\n"
+            "2. RUN_WEATHER:город\n"
+            "3. RUN_SEARCH:запрос\n"
+            "4. RUN_CURRENCY:сумма:из_валюты:в_валюту\n\n"
+            "Если это простой диалог, просто ответь текстом на русском языке в 1 предложении без команд."
         )
-
-        if "напомни через" in user_text.lower():
-            try:
-                words = user_text.lower().split()
-                seconds = int(words[2])
-                reminder_text = " ".join(words[4:])
-                threading.Thread(target=send_delayed_reminder, args=(chat_id, seconds, reminder_text), daemon=True).start()
-                bot.reply_to(message, f"Задача принята. Напоминание сработает через {seconds} сек.")
-                return
-            except:
-                pass
 
         messages = [SystemMessage(content=system_instruction)]
         messages.extend(get_chat_history(chat_id, limit=2))
