@@ -266,13 +266,13 @@ def handle_agent_message(message):
         save_message(chat_id, "assistant", bot_answer)
         try:
             bot.reply_to(message, bot_answer, parse_mode="Markdown", reply_markup=get_main_keyboard())
-        except Exception as telegram_parse_err:
-            print(f"[Варнинг]: Telegram не смог распарсить Markdown. Переотправляю чистым текстом. Ошибка: {telegram_parse_err}")
+        except Exception as e:
+            print(f"[Warn]: Markdown failed, sending plain text. Error: {e}")
             try:
                 bot.reply_to(message, bot_answer, reply_markup=get_main_keyboard())
             except Exception as critical_send_err:
-                print(f"[Критическая ошибка отправки]: {critical_send_err}")
-                bot.reply_to(message, "⚠️ Извините, ответ получился слишком объемным или содержит некорректные символы. Попробуйте перефразировать вопрос.", reply_markup=get_main_keyboard())
+                print(f"[Critical]: Failed to send: {critical_err}")
+                bot.reply_to(message, f"Результат: {bot_answer.splitlines()[-1] if '\n' in bot_answer else bot_answer}", reply_markup=get_main_keyboard())
 
     except Exception as e:
         print(f"[Системная ошибка ядра]: {e}")

@@ -8,14 +8,12 @@ from bs4 import BeautifulSoup
 
 def calculate(expression: str) -> str:
     try:
-        cleaned = "".join(c for c in expression if c in "0123456789+-*/.()")
-        
-        result = eval(cleaned, {"__builtins__": None}, {})
-        
+        allowed = "0123456789+-*/.() "
+        expression = "".join(c for c in expression if c in allowed)
+        result = eval(expression, {"__builtins__": None}, {})
         return str(result)
-        
-    except Exception as e:
-        return "Ошибка в примере. Пожалуйста, используйте только числа и знаки +, -, *, /"
+    except Exception:
+        return "Ошибка вычисления"
 
 def get_weather(city: str):
     url = f"https://wttr.in/{city}?format=3&lang=ru&0"
