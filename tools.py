@@ -9,16 +9,20 @@ def calculate(expression: str) -> str:
     except Exception as e:
         return f"Ошибка при расчете: {e}."
 
-def get_weather(city: str) -> str:
+def get_weather(city: str):
     try:
-        url = f"https://wttr.in/{city}?format=3"
+        url = f"https://wttr.in/{city}?format=3&lang=ru"
+        
         response = requests.get(url, timeout=5)
+        
         if response.status_code == 200:
-            return f"Данные о погоде: {response.text.strip()}"
+            return response.text.strip()
         else:
-            return "Не удалось получить данные о погоде."
+            return f"Не удалось получить погоду для города {city}."
+            
     except Exception as e:
-        return f"Ошибка при запросе погоды: {e}"
+        print(f"[ERROR]: Ошибка при запросе погоды: {e}")
+        return "Извините, сервис погоды сейчас временно недоступен."
 
 def google_search(query: str) -> str:
     try:
