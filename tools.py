@@ -14,33 +14,28 @@ def calculate(expression: str) -> str:
         return f"Ошибка при расчете: {e}."
 
 def get_weather(city: str):
-    """Узнает погоду и время в городе."""
+    url = f"https://wttr.in/{city}?format=3&lang=ru&0"
     try:
-        url = f"https://wttr.in/{city}?format=3&lang=ru&0"
-        resp = requests.get(url, timeout=7)
-        
-        weather_info = resp.text.strip()
-        if len(weather_info) < 10 or "WEATHER" in weather_info:
-            weather_info = f"погода в {city} сейчас недоступна для отображения"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            weather_text = response.text.strip()
+        else:
+            weather_text = "данные о погоде недоступны"
 
         geolocator = Nominatim(user_agent="my_ai_bot")
         location = geolocator.geocode(city)
-        time_str = ""
+        time_text = ""
         if location:
             tf = TimezoneFinder()
             tz_str = tf.timezone_at(lng=location.longitude, lat=location.latitude)
             if tz_str:
                 tz = pytz.timezone(tz_str)
                 time_now = datetime.now(tz).strftime("%H:%M")
-                time_str = f" | Время: {time_now}"
+                time_text = f" | Время: {time_now}"
 
-        return f"{weather_info}{time_str}"
-        
+        return f"{weather_text}{time_text}"
     except Exception as e:
-        return f"Не удалось получить данные: {e}"
-        
-    except Exception as e:
-        return f"Ошибка: {e}"
+        return f"Ошибка при получении погоды: {str(e)}"
 
 def google_search(query: str) -> str:
     try:
