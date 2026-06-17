@@ -196,7 +196,7 @@ def handle_agent_message(message):
                 is_tool_used = True
                 expr = action.replace("CALC:", "").strip()
                 result = calculate(expr)
-                final_replies.append(f"🧱 **[ 🧮 Модуль вычислений ]**\n📊 *Задача:* `{expr}`\n✅ *{result}*")
+                final_replies.append(f"Результат {expr} = {result}")
                 
             elif action.startswith("WEATHER:"):
                 is_tool_used = True
