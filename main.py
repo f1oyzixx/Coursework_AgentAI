@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from telebot import types
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from langchain.agents import tool
+from langchain_core.tools import tool
 from tools import calculate, get_weather, google_search, convert_currency
 
 # =====================================================================
