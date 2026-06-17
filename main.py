@@ -8,14 +8,9 @@ from dotenv import load_dotenv
 from telebot import types
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from langchain_core.tools import tool
 
-# Импортируем функции из твоих tools.py
 from tools import calculate, get_weather, google_search, convert_currency
 
-# =====================================================================
-# 1. КОНФИГУРАЦИЯ И ОПРЕДЕЛЕНИЕ ИНСТРУМЕНТОВ ДЛЯ КУРСОВОЙ
-# =====================================================================
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -23,42 +18,14 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-@tool
-def tool_calculate(expression: str) -> str:
-    """Математический калькулятор. Принимает чистую строку с примером, например: '7274*6373' или '124+45'."""
-    return calculate(expression)
-
-@tool
-def tool_get_weather(city: str) -> str:
-    """Запрос текущей погоды для указанного города на русском языке."""
-    return get_weather(city)
-
-@tool
-def tool_google_search(query: str) -> str:
-    """Поиск фактов в глобальной сети или Википедии по текстовому запросу."""
-    return google_search(query)
-
-@tool
-def tool_convert_currency(amount: float, from_currency: str, to_currency: str) -> str:
-    """Конвертер валют по курсу ЦБ РФ. Требует количество, исходную валюту и целевую (например: 100, 'USD', 'RUB')."""
-    return convert_currency(amount, from_currency, to_currency)
-
-tools_list = [tool_calculate, tool_get_weather, tool_google_search, tool_convert_currency]
 llm = ChatGroq(
     temperature=0.1, 
     groq_api_key=GROQ_API_KEY,
     model_name="llama-3.1-8b-instant"
-).bind_tools(tools_list)
-
-tools_map = {
-    "tool_calculate": tool_calculate,
-    "tool_get_weather": tool_get_weather,
-    "tool_google_search": tool_google_search,
-    "tool_convert_currency": tool_convert_currency
-}
+)
 
 # =====================================================================
-# 2. БЛОК РАБОТЫ С БАЗОЙ ДАННЫХ (КОНТЕКСТНАЯ ПАМЯТЬ)
+# БАЗА ДАННЫХ
 # =====================================================================
 def init_db():
     conn = sqlite3.connect("bot_memory.db")
@@ -81,7 +48,7 @@ def save_message(chat_id, role, content):
     conn.commit()
     conn.close()
 
-def get_chat_history(chat_id, limit=4):
+def get_chat_history(chat_id, limit=2):
     conn = sqlite3.connect("bot_memory.db")
     cursor = conn.cursor()
     cursor.execute("SELECT role, content FROM history WHERE chat_id = ? ORDER BY id DESC LIMIT ?", (chat_id, limit))
@@ -99,9 +66,6 @@ def get_chat_history(chat_id, limit=4):
 
 init_db()
 
-# =====================================================================
-# 3. ПОЛЬЗОВАТЕЛЬСКИЙ ИНТЕРФЕЙС
-# =====================================================================
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(types.KeyboardButton("🌤 Погода"), types.KeyboardButton("🧮 Калькулятор"))
@@ -116,23 +80,19 @@ def send_welcome(message):
         "Тема: «Создание LLM агента с автономным вызовом функций»\n\n"
         "Разработчик: студент 1-МОК, гр. 31ИС\n"
         "Щучкин Иван Алексеевич\n\n"
-        "Бот переведен на отказоустойчивую архитектуру Native Tool Calling. "
-        "Используйте кнопки меню или пишите запросы текстом."
+        "Бот переведен на детерминированный CLI-интерфейс обработки команд."
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_keyboard())
 
-# =====================================================================
-# 4. АСИНХРОННЫЙ МОДУЛЬ НАПОМИНАНИЙ
-# =====================================================================
 def send_delayed_reminder(chat_id, delay_seconds, text):
     time.sleep(delay_seconds)
     try:
         bot.send_message(chat_id, f"⏰ НАПОМИНАНИЕ: {text}")
     except Exception as e:
-        print(f"Ошибка отправки напоминания: {e}")
+        print(f"Ошибка напоминания: {e}")
 
 # =====================================================================
-# 5. МАРШРУТИЗАЦИЯ И ОБРАБОТКА ЗАПРОСОВ (ЯДРО АГЕНТА)
+# ЯДРО АГЕНТА (МАРШРУТИЗАЦИЯ)
 # =====================================================================
 @bot.message_handler(func=lambda message: True)
 def handle_agent_message(message):
@@ -144,10 +104,10 @@ def handle_agent_message(message):
             bot.send_message(chat_id, "Напишите запрос, например: Погода в Москве")
             return
         elif user_text == "🧮 Калькулятор":
-            bot.send_message(chat_id, "Отправьте пример, например: Сколько будет 7274 умножить на 6373")
+            bot.send_message(chat_id, "Отправьте пример, например: Сколько будет 7274*6373")
             return
         elif user_text == "🔍 Поиск знаний":
-            bot.send_message(chat_id, "Что найти? Например: Кто такой Илон Маск")
+            bot.send_message(chat_id, "Что найти? Например: Сколько лет Дональду Трампу")
             return
         elif user_text == "💵 Курс валют":
             bot.send_message(chat_id, "Например: Переведи 150 долларов в рубли")
@@ -159,16 +119,17 @@ def handle_agent_message(message):
         save_message(chat_id, "user", user_text)
         
         system_instruction = (
-            "Ты — лаконичный ИИ-агент, помогающий пользователю. Отвечай строго на русском языке.\n"
-            f"ВНИМАНИЕ: Сегодняшняя дата — 18 июня 2026 года. Всегда считай возраст людей, городов и объектов относительно 2026 года.\n"
-            "Твоя главная черта — максимальная краткость и точность. Никакой воды и долгих вступлений.\n"
-            "ПРАВИЛА ВЫЗОВА ИНСТРУМЕНТОВ:\n"
-            "1. Если для ответа нужны точные вычисления, погода, курс валют или поиск фактов в сети — "
-            "вызывай подходящий инструмент. Передавай в него только реальные параметры.\n"
-            "2. Если запрос неполный или абстрактный (например, 'сколько лет', 'привет'), "
-            "НЕ вызывай инструменты. Ответь обычным коротким текстом и вежливо попроси уточнить вопрос.\n"
-            "3. Если ты отвечаешь обычным текстом (без инструментов), пиши ответ в 1-2 простых предложения. "
-            "Не используй сложные списки, маркеры и лишнее форматирование."
+            "Ты — ИИ-рулевой для вызова программных функций. Отвечай кратко.\n"
+            "ВНИМАНИЕ: Текущий год — 2026. Если тебя спрашивают про возраст людей или объектов, "
+            "тебе ОБЯЗАТЕЛЬНО нужно сначала узнать их дату рождения или основания через поиск В Википедии!\n\n"
+            "Если пользователю нужно что-то узнать, найти, посчитать или проверить погоду, ты "
+            "ОБЯЗАН выдать СТРОГО ОДНУ команду из списка ниже и БОЛЬШЕ НИЧЕГО не писать:\n"
+            "1. RUN_CALC:выражение (Пример: RUN_CALC:2+2)\n"
+            "2. RUN_WEATHER:город (Пример: RUN_WEATHER:Москва)\n"
+            "3. RUN_SEARCH:запрос (Пример: RUN_SEARCH:Дональд Трамп)\n"
+            "4. RUN_CURRENCY:сумма:из_валюты:в_валюту (Пример: RUN_CURRENCY:100:USD:RUB)\n\n"
+            "Если это простой диалог (приветствие, спасибо, пустой или абстрактный вопрос), "
+            "просто ответь текстом на русском языке в 1 предложение без команд."
         )
 
         if "напомни через" in user_text.lower():
@@ -177,7 +138,7 @@ def handle_agent_message(message):
                 seconds = int(words[2])
                 reminder_text = " ".join(words[4:])
                 threading.Thread(target=send_delayed_reminder, args=(chat_id, seconds, reminder_text), daemon=True).start()
-                bot.reply_to(message, f"Задача принята. Напоминание сработает через {seconds} сек.", reply_markup=get_main_keyboard())
+                bot.reply_to(message, f"Задача принята. Напоминание сработает через {seconds} сек.")
                 return
             except:
                 pass
@@ -186,41 +147,50 @@ def handle_agent_message(message):
         messages.extend(get_chat_history(chat_id, limit=2))
         messages.append(HumanMessage(content=user_text))
 
-        ai_msg = llm.invoke(messages)
+        ai_response = llm.invoke(messages).content.strip()
+        print(f"[Решение модели]: {ai_response}")
+
         bot_answer = ""
         
-        if ai_msg.tool_calls:
-            for tool_call in ai_msg.tool_calls:
-                tool_name = tool_call["name"]
-                tool_args = tool_call["args"]
-                
-                print(f"[Вызов инструмента]: {tool_name} с параметрами {tool_args}")
-                
-                if tool_name in tools_map:
-                    try:
-                        # Получаем чистый результат выполнения функции
-                        result = tools_map[tool_name].invoke(tool_args)
-                        bot_answer = str(result)
-                    except Exception as tool_err:
-                        print(f"[Ошибка выполнения инструмента]: {tool_err}")
-                        bot_answer = "Извините, не удалось обработать этот запрос внутри системных модулей."
-                else:
-                    bot_answer = "Ошибка: затребован неизвестный модуль."
+        if "RUN_CALC:" in ai_response:
+            expr = ai_response.split("RUN_CALC:")[1].strip()
+            bot_answer = f"Результат вычислений: {calculate(expr)}"
+            
+        elif "RUN_WEATHER:" in ai_response:
+            city = ai_response.split("RUN_WEATHER:")[1].strip()
+            bot_answer = get_weather(city)
+            
+        elif "RUN_SEARCH:" in ai_response:
+            query = ai_response.split("RUN_SEARCH:")[1].strip()
+            search_res = google_search(query)
+            
+            summary_prompt = [
+                SystemMessage(content="Текущий год — 2026. На основе предоставленных фактов из Википедии напиши ОДНО краткое итоговое предложение с ответом на вопрос пользователя."),
+                HumanMessage(content=f"Вопрос пользователя: {user_text}\n\nФакты из Википедии:\n{search_res}")
+            ]
+            bot_answer = llm.invoke(summary_prompt).content.strip()
+            
+        elif "RUN_CURRENCY:" in ai_response:
+            parts = ai_response.split("RUN_CURRENCY:")[1].strip().split(":")
+            if len(parts) == 3:
+                bot_answer = convert_currency(parts[0], parts[1], parts[2])
+            else:
+                bot_answer = "Неверный формат команды конвертации валют."
         else:
-            bot_answer = ai_msg.content.strip()
+            bot_answer = ai_response
 
         if not bot_answer:
-            bot_answer = "Не удалось сформировать ответ. Пожалуйста, повторите запрос."
+            bot_answer = "Извините, запрос не удалось обработать. Попробуйте еще раз."
 
         save_message(chat_id, "assistant", bot_answer)
         bot.reply_to(message, bot_answer, reply_markup=get_main_keyboard())
             
     except Exception as e:
         print(f"[Системная ошибка ядра]: {e}")
-        bot.reply_to(message, "Произошла техническая ошибка. Повторите запрос позже.", reply_markup=get_main_keyboard())
+        bot.reply_to(message, "Ошибка обработки. Пожалуйста, перефразируйте ваш запрос.", reply_markup=get_main_keyboard())
 
 # =====================================================================
-# 6. ВЕБ-СЕРВЕР ДЛЯ HEALTH CHECK (RENDER) И ЗАПУСК БОТА
+# HEALTH SERVER И ЗАПУСК
 # =====================================================================
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -228,8 +198,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.send_header("Content-type", "text/plain; charset=utf-8")
         self.end_headers()
         self.wfile.write("OK".encode("utf-8"))
-    def log_message(self, format, *args):
-        return
+    def log_message(self, format, *args): return
 
 def run_health_server():
     port = int(os.getenv("PORT", 10000))
@@ -238,7 +207,4 @@ def run_health_server():
 
 if __name__ == "__main__":
     threading.Thread(target=run_health_server, daemon=True).start()
-    print("=======================================================")
-    print(" ИИ-АГЕНТ ЩУЧКИНА И.А. УСПЕШНО ЗАПУЩЕН")
-    print("=======================================================")
     bot.infinity_polling()
