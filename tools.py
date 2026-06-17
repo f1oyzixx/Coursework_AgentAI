@@ -4,6 +4,7 @@ from datetime import datetime
 import pytz
 from timezonefinder import TimezoneFinder
 from geopy.geocoders import Nominatim
+from bs4 import BeautifulSoup
 
 def calculate(expression: str) -> str:
     try:
@@ -25,7 +26,7 @@ def get_weather(city: str):
         else:
             weather_text = "данные о погоде недоступны"
 
-        geolocator = Nominatim(user_agent="my_ai_bot")
+        geolocator = Nominatim(user_agent="shchukin_ai_bot_31is")
         location = geolocator.geocode(city)
         time_text = ""
         if location:
