@@ -118,6 +118,21 @@ def handle_agent_message(message):
 
         save_message(chat_id, "user", user_text)
         
+        if any(c.isdigit() for c in user_text) and not any(word in user_text.lower() for word in ["лет", "год", "доллар", "евро", "рубл"]):
+            allowed_math = set("0123456789+-*/.() ")
+
+            if not set(user_text).issubset(allowed_math):
+                bot_answer = "Результат вычислений: Ошибка: выражение содержит недопустимые символы (например, '?') и не может быть вычислено."
+                save_message(chat_id, "assistant", bot_answer)
+                bot.reply_to(message, bot_answer, reply_markup=get_main_keyboard())
+                return
+            else:
+                print(f"[Перехват чистой математики]: {user_text}")
+                bot_answer = f"Результат вычислений: {calculate(user_text)}"
+                save_message(chat_id, "assistant", bot_answer)
+                bot.reply_to(message, bot_answer, reply_markup=get_main_keyboard())
+                return
+        
         system_instruction = (
             "Ты — ИИ-рулевой для вызова программных функций. Отвечай кратко.\n"
             "ВНИМАНИЕ: Текущий год — 2026. Если тебя спрашивают про возраст людей или объектов, "
