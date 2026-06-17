@@ -1,5 +1,9 @@
 import requests
 import wikipediaapi
+from datetime import datetime
+import pytz
+from timezonefinder import TimezoneFinder
+from geopy.geocoders import Nominatim
 
 def calculate(expression: str) -> str:
     try:
@@ -12,17 +16,25 @@ def calculate(expression: str) -> str:
 def get_weather(city: str):
     try:
         url = f"https://wttr.in/{city}?format=3&lang=ru"
+        resp = requests.get(url, timeout=5)
+        weather_info = resp.text.strip() if resp.status_code == 200 else "погоду узнать не удалось"
+
+        geolocator = Nominatim(user_agent="my_ai_bot")
+        location = geolocator.geocode(city)
+        time_str = ""
         
-        response = requests.get(url, timeout=5)
+        if location:
+            tf = TimezoneFinder()
+            tz_str = tf.timezone_at(lng=location.longitude, lat=location.latitude)
+            if tz_str:
+                tz = pytz.timezone(tz_str)
+                time_now = datetime.now(tz).strftime("%H:%M")
+                time_str = f" | Время: {time_now}"
+
+        return f"{weather_info}{time_str}"
         
-        if response.status_code == 200:
-            return response.text.strip()
-        else:
-            return f"Не удалось получить погоду для города {city}."
-            
     except Exception as e:
-        print(f"[ERROR]: Ошибка при запросе погоды: {e}")
-        return "Извините, сервис погоды сейчас временно недоступен."
+        return f"Ошибка: {e}"
 
 def google_search(query: str) -> str:
     try:
