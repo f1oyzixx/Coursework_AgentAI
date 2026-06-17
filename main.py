@@ -3,6 +3,8 @@ import sqlite3
 import threading
 import time
 import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from dotenv import load_dotenv
 from telebot import types
 from langchain_groq import ChatGroq
@@ -270,12 +272,31 @@ def handle_agent_message(message):
         print(f"[Системная ошибка ядра]: {e}")
         bot.reply_to(message, f"💥 Произошла системная ошибка в работе ядра агента.", reply_markup=get_main_keyboard())
 
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write("Бот работает!".encode("utf-8"))
+    def log_message(self, format, *args):
+        return
+
+def run_health_server():
+    port = int(os.getenv("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    print(f"[HealthCheck]: Веб-сервер запущен на порту {port}")
+    server.serve_forever()
+
+if __name__ == "__main__":
+    web_thread = threading.Thread(target=run_health_server, daemon=True)
+    web_thread.start()  
+
 # =====================================================================
 # 6. ЗАПУСК СЕРВЕРА
 # =====================================================================
-print("="*55)
+print("=======================================================")
 print(" КУРСОВАЯ РАБОТА СТУДЕНТА ЩУЧКИНА И.А. (ГР. 32)")
 print(" ИИ-БОТ УСПЕШНО ЗАПУЩЕН И ГОТОВ К РАБОТЕ")
-print("="*55)
+print("=======================================================")
 
 bot.infinity_polling()
