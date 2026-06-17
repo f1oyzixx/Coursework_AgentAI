@@ -6,15 +6,20 @@ from timezonefinder import TimezoneFinder
 from geopy.geocoders import Nominatim
 
 def calculate(expression: str) -> str:
+    """Математический калькулятор с жесткой валидацией символов."""
     try:
-        allowed = "0123456789+-*/.() "
-        expression = "".join(c for c in expression if c in allowed)
+        allowed_chars = set("0123456789+-*/.() ")
+        
+        if not set(expression).issubset(allowed_chars):
+            return "Ошибка: выражение содержит недопустимые символы (например, '?') и не может быть вычислено."
+            
         if not expression.strip():
-            return "не передан пример"
+            return "Не передан математический пример."
+            
         result = eval(expression, {"__builtins__": None}, {})
         return str(result)
     except Exception:
-        return "ошибка вычисления"
+        return "Ошибка: не удалось вычислить пример. Проверьте корректность математического выражения."
 
 def get_weather(city: str) -> str:
     if not city:
