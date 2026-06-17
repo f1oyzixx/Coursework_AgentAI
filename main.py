@@ -163,7 +163,7 @@ def handle_agent_message(message):
             "Твоя главная черта — максимальная краткость и точность. Никакой воды и долгих вступлений.\n"
             "ПРАВИЛА ВЫЗОВА ИНСТРУМЕНТОВ:\n"
             "1. Если для ответа нужны точные вычисления, погода, курс валют или поиск фактов в сети — "
-            "вызывай подходящий инструмент. Передавай в него только реальные аргументы.\n"
+            "вызывай подходящий инструмент. Передавай в него только реальные параметры.\n"
             "2. Если запрос неполный или абстрактный (например, 'сколько лет', 'привет'), "
             "НЕ вызывай инструменты. Ответь обычным коротким текстом и вежливо попроси уточнить вопрос.\n"
             "3. Если ты отвечаешь обычным текстом (без инструментов), пиши ответ в 1-2 простых предложения. "
@@ -186,6 +186,7 @@ def handle_agent_message(message):
         messages.append(HumanMessage(content=user_text))
 
         ai_msg = llm.invoke(messages)
+        bot_answer = ""
         
         if ai_msg.tool_calls:
             for tool_call in ai_msg.tool_calls:
@@ -195,26 +196,27 @@ def handle_agent_message(message):
                 print(f"[Вызов инструмента]: {tool_name} с параметрами {tool_args}")
                 
                 if tool_name in tools_map:
-                    if not tool_args or (isinstance(tool_args, dict) and not any(tool_args.values())):
-                        bot_answer = "Пожалуйста, уточните ваш запрос. Мне не хватает данных для поиска или вычисления."
-                    else:
-                        try:
-                            result = tools_map[tool_name].invoke(tool_args)
-                            bot_answer = f"Ответ: {result}"
-                        except Exception as tool_err:
-                            print(f"[Ошибка внутри инструмента {tool_name}]: {tool_err}")
-                            bot_answer = "Не удалось выполнить операцию с данными параметрами. Перефразируйте вопрос."
+                    try:
+                        # Получаем чистый результат выполнения функции
+                        result = tools_map[tool_name].invoke(tool_args)
+                        bot_answer = str(result)
+                    except Exception as tool_err:
+                        print(f"[Ошибка выполнения инструмента]: {tool_err}")
+                        bot_answer = "Извините, не удалось обработать этот запрос внутри системных модулей."
                 else:
                     bot_answer = "Ошибка: затребован неизвестный модуль."
         else:
             bot_answer = ai_msg.content.strip()
 
+        if not bot_answer:
+            bot_answer = "Не удалось сформировать ответ. Пожалуйста, повторите запрос."
+
         save_message(chat_id, "assistant", bot_answer)
         bot.reply_to(message, bot_answer, reply_markup=get_main_keyboard())
             
     except Exception as e:
-        print(f"[Системная ошибка]: {e}")
-        bot.reply_to(message, "Произошла ошибка при обработке запроса. Пожалуйста, попробуйте еще раз.", reply_markup=get_main_keyboard())
+        print(f"[Системная ошибка ядра]: {e}")
+        bot.reply_to(message, "Произошла техническая ошибка. Повторите запрос позже.", reply_markup=get_main_keyboard())
 
 # =====================================================================
 # 6. ВЕБ-СЕРВЕР ДЛЯ HEALTH CHECK (RENDER) И ЗАПУСК БОТА
